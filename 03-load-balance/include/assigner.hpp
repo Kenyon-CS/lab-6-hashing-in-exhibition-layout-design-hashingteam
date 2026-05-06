@@ -13,6 +13,7 @@ struct AssignmentResult {
     std::vector<std::vector<std::uint32_t>> room_to_artworks; // chaining model
     int max_load = 0;
     int overflows = 0;
+    double load_factor = 0.0;
 };
 
 class HashedAssigner {
@@ -34,4 +35,21 @@ public:
 
 private:
     std::uint64_t A, B, P;
+};
+
+class BadHashAssigner {
+public:
+    explicit BadHashAssigner(std::uint32_t cluster_span = 25)
+        : span(cluster_span == 0 ? 1 : cluster_span) {}
+
+    std::uint32_t room_for(std::uint32_t artwork_id, std::uint32_t m) const {
+        return (artwork_id / span) % m;
+    }
+
+    AssignmentResult assign(const std::vector<std::uint32_t>& artwork_ids,
+                            std::uint32_t m_rooms,
+                            int bucket_size_B) const;
+
+private:
+    std::uint32_t span = 25;
 };
