@@ -3,6 +3,7 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include <chrono>
 
 #include "constraints.hpp"
 
@@ -13,13 +14,24 @@
 // Usage:
 //   ./02_conflict_check data/small_artworks.csv data/small_attempts.txt
 
+static std::string trim(const std::string& s) {
+    const std::size_t first = s.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return "";
+    const std::size_t last = s.find_last_not_of(" \t\r\n");
+    return s.substr(first, last - first + 1);
+}
+
+static std::string strip_comment(const std::string& line) {
+    return trim(line.substr(0, line.find('#')));
+}
+
 static bool load_artworks(const std::string& path, std::unordered_map<std::uint32_t, Artwork>& arts) {
     std::ifstream in(path);
     if (!in) return false;
     std::string line;
     while (std::getline(in, line)) {
+        line = strip_comment(line);
         if (line.empty()) continue;
-        if (line.rfind("#", 0) == 0) continue;
         std::istringstream ss(line);
         std::string id_s, artist, medium, title;
         if (!std::getline(ss, id_s, ',')) return false;
@@ -41,8 +53,8 @@ static bool load_attempts(const std::string& path, std::vector<Placement>& out) 
     if (!in) return false;
     std::string line;
     while (std::getline(in, line)) {
+        line = strip_comment(line);
         if (line.empty()) continue;
-        if (line.rfind("#", 0) == 0) continue;
         Placement p;
         if (!(std::istringstream(line) >> p.loc.room >> p.loc.wall >> p.artwork_id >> p.orientation)) {
             std::cerr << "Bad line: " << line << "\n";
@@ -56,6 +68,7 @@ static bool load_attempts(const std::string& path, std::vector<Placement>& out) 
 int main(int argc, char** argv) {
     std::string artFile = (argc >= 2) ? argv[1] : "data/small_artworks.csv";
     std::string attFile = (argc >= 3) ? argv[2] : "data/small_attempts.txt";
+    auto start = std::chrono::steady_clock::now();
 
     std::unordered_map<std::uint32_t, Artwork> artworks;
     if (!load_artworks(artFile, artworks)) {
@@ -69,7 +82,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    ConstraintChecker checker(/*max_sculptures_per_room=*/2);
+    ConstraintChecker checker(/*max_sculptures_per_room=*/2,
+                              /*max_same_medium_per_room=*/2);
 
     int accepted = 0, rejected = 0;
     for (const auto& p : attempts) {
@@ -84,18 +98,3 @@ int main(int argc, char** argv) {
             checker.place(p, art);
             accepted++;
             std::cout << "ACCEPT  room " << p.loc.room << " wall " << p.loc.wall
-                      << " art " << p.artwork_id << " (" << art.artist << ", " << art.medium << ")\n";
-        } else {
-            rejected++;
-            std::cout << "REJECT  room " << p.loc.room << " wall " << p.loc.wall
-                      << " art " << p.artwork_id << " (" << art.artist << ", " << art.medium << ")\n";
-        }
-    }
-
-    std::cout << "\nAccepted: " << accepted << "\nRejected: " << rejected << "\n";
-    std::cout << "\nTODO (students):\n"
-              << " - Add more constraints (lighting, adjacency, wall capacity, etc.).\n"
-              << " - Support 'remove' for backtracking search.\n"
-              << " - Stress test runtime as attempts scale.\n";
-    return 0;
-}
